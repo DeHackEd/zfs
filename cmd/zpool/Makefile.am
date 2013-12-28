@@ -11,7 +11,8 @@ zpool_SOURCES = \
 	$(top_srcdir)/cmd/zpool/zpool_main.c \
 	$(top_srcdir)/cmd/zpool/zpool_util.c \
 	$(top_srcdir)/cmd/zpool/zpool_util.h \
-	$(top_srcdir)/cmd/zpool/zpool_vdev.c
+	$(top_srcdir)/cmd/zpool/zpool_vdev.c \
+	$(top_srcdir)/cmd/zpool/zpool_nagios.c
 
 zpool_LDADD = \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \
