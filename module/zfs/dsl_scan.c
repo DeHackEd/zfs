@@ -644,11 +644,13 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 			scn->scn_phys.scn_errors++;
 			return (err);
 		}
-		for (i = 0, cbp = (*bufp)->b_data; i < epb; i++, cbp++) {
+		cbp = ABD_TO_BUF((*bufp)->b_data);
+		for (i = 0; i < epb; i++, cbp++) {
 			dsl_scan_prefetch(scn, *bufp, cbp, zb->zb_objset,
 			    zb->zb_object, zb->zb_blkid * epb + i);
 		}
-		for (i = 0, cbp = (*bufp)->b_data; i < epb; i++, cbp++) {
+		cbp = ABD_TO_BUF((*bufp)->b_data);
+		for (i = 0; i < epb; i++, cbp++) {
 			zbookmark_t czb;
 
 			SET_BOOKMARK(&czb, zb->zb_objset, zb->zb_object,
@@ -678,14 +680,16 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 			scn->scn_phys.scn_errors++;
 			return (err);
 		}
-		for (i = 0, cdnp = (*bufp)->b_data; i < epb; i++, cdnp++) {
+		cdnp = ABD_TO_BUF((*bufp)->b_data);
+		for (i = 0; i < epb; i++, cdnp++) {
 			for (j = 0; j < cdnp->dn_nblkptr; j++) {
 				blkptr_t *cbp = &cdnp->dn_blkptr[j];
 				dsl_scan_prefetch(scn, *bufp, cbp,
 				    zb->zb_objset, zb->zb_blkid * epb + i, j);
 			}
 		}
-		for (i = 0, cdnp = (*bufp)->b_data; i < epb; i++, cdnp++) {
+		cdnp = ABD_TO_BUF((*bufp)->b_data);
+		for (i = 0; i < epb; i++, cdnp++) {
 			dsl_scan_visitdnode(scn, ds, ostype,
 			    cdnp, *bufp, zb->zb_blkid * epb + i, tx);
 		}
@@ -701,7 +705,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 			return (err);
 		}
 
-		osp = (*bufp)->b_data;
+		osp = ABD_TO_BUF((*bufp)->b_data);
 
 		dsl_scan_visitdnode(scn, ds, osp->os_type,
 		    &osp->os_meta_dnode, *bufp, DMU_META_DNODE_OBJECT, tx);
@@ -1668,7 +1672,7 @@ dsl_scan_scrub_done(zio_t *zio)
 {
 	spa_t *spa = zio->io_spa;
 
-	zio_data_buf_free(zio->io_data, zio->io_size);
+	zio_data_buf_free(ABD_TO_BUF(zio->io_data), zio->io_size);
 
 	mutex_enter(&spa->spa_scrub_lock);
 	spa->spa_scrub_inflight--;
@@ -1764,7 +1768,7 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 		if (ddi_get_lbolt64() - spa->spa_last_io <= zfs_scan_idle)
 			delay(scan_delay);
 
-		zio_nowait(zio_read(NULL, spa, bp, data, size,
+		zio_nowait(zio_read(NULL, spa, bp, BUF_TO_ABD(data), size,
 		    dsl_scan_scrub_done, NULL, ZIO_PRIORITY_SCRUB,
 		    zio_flags, zb));
 	}
