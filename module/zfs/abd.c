@@ -25,6 +25,7 @@
 
 #include <sys/abd.h>
 #include <sys/zio.h>
+#include <sys/arc.h>
 #ifdef _KERNEL
 #include <linux/kernel.h>
 #include <linux/sched.h>
@@ -968,6 +969,7 @@ abd_get_offset(abd_t *sabd, size_t off)
 	ASSERT(off <= sabd->abd_size);
 
 	abd = kmem_cache_alloc(abd_struct_cache, KM_PUSHPAGE);
+	/* XXX: Not counting this as ARC space usage */
 
 	abd->abd_magic = ARC_BUF_DATA_MAGIC;
 	abd->abd_size = sabd->abd_size - off;
@@ -1011,6 +1013,7 @@ abd_get_from_buf(void *buf, size_t size)
 	abd_t *abd;
 
 	abd = kmem_cache_alloc(abd_struct_cache, KM_PUSHPAGE);
+	/* XXX: Not counting this as ARC space usage */
 
 	abd->abd_magic = ARC_BUF_DATA_MAGIC;
 	abd->abd_flags = ABD_F_LINEAR;
@@ -1118,6 +1121,8 @@ retry:
 		sg_set_page(sg, page, (i == n-1 ? last_size : PAGESIZE), 0);
 	}
 
+	arc_space_consume(sizeof (abd_t), ARC_SPACE_ABD_HDRS);
+	arc_space_consume(abd->abd_nents * PAGESIZE, ARC_SPACE_ABD_DATA);
 	return (abd);
 }
 
@@ -1148,6 +1153,8 @@ abd_alloc_linear(size_t size)
 
 	abd->abd_buf = zio_buf_alloc(size);
 
+	arc_space_consume(sizeof (abd_t), ARC_SPACE_ABD_HDRS);
+
 	return (abd);
 }
 
@@ -1169,6 +1176,8 @@ abd_free_scatter(abd_t *abd, size_t size)
 	}
 
 	abd_sg_free_table(abd);
+	arc_space_return(sizeof (abd_t), ARC_SPACE_ABD_HDRS);
+	arc_space_return(n * PAGESIZE, ARC_SPACE_ABD_DATA);
 	kmem_cache_free(abd_struct_cache, abd);
 }
 
@@ -1178,7 +1187,9 @@ abd_free_linear(abd_t *abd, size_t size)
 	abd->abd_magic = 0;
 	zio_buf_free(abd->abd_buf, size);
 	kmem_cache_free(abd_struct_cache, abd);
+	arc_space_return(sizeof (abd_t), ARC_SPACE_ABD_HDRS);
 }
+
 
 /*
  * Free a ABD.

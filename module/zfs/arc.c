@@ -335,6 +335,8 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_meta_used;
 	kstat_named_t arcstat_meta_limit;
 	kstat_named_t arcstat_meta_max;
+	kstat_named_t arcstat_abd_data_size;
+	kstat_named_t arcstat_abd_hdr_size;
 } arc_stats_t;
 
 static arc_stats_t arc_stats = {
@@ -424,6 +426,8 @@ static arc_stats_t arc_stats = {
 	{ "arc_meta_used",		KSTAT_DATA_UINT64 },
 	{ "arc_meta_limit",		KSTAT_DATA_UINT64 },
 	{ "arc_meta_max",		KSTAT_DATA_UINT64 },
+	{ "abd_data_size",		KSTAT_DATA_UINT64 },
+	{ "abd_hdr_size",		KSTAT_DATA_UINT64 },
 };
 
 #define	ARCSTAT(stat)	(arc_stats.stat.value.ui64)
@@ -1316,6 +1320,13 @@ arc_space_consume(uint64_t space, arc_space_type_t type)
 	case ARC_SPACE_L2HDRS:
 		ARCSTAT_INCR(arcstat_l2_hdr_size, space);
 		break;
+	case ARC_SPACE_ABD_DATA:
+		ARCSTAT_INCR(arcstat_abd_data_size, space);
+		/* Space is already considered data used, return now */
+		return;
+	case ARC_SPACE_ABD_HDRS:
+		ARCSTAT_INCR(arcstat_abd_hdr_size, space);
+		break;
 	}
 
 	if (type != ARC_SPACE_DATA) {
@@ -1349,6 +1360,13 @@ arc_space_return(uint64_t space, arc_space_type_t type)
 		break;
 	case ARC_SPACE_L2HDRS:
 		ARCSTAT_INCR(arcstat_l2_hdr_size, -space);
+		break;
+	case ARC_SPACE_ABD_DATA:
+		ARCSTAT_INCR(arcstat_abd_data_size, -space);
+		/* Space is alredy considered used, return now */
+		return;
+	case ARC_SPACE_ABD_HDRS:
+		ARCSTAT_INCR(arcstat_abd_hdr_size, -space);
 		break;
 	}
 
