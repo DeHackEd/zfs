@@ -479,6 +479,11 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_meta_min;
 	kstat_named_t arcstat_need_free;
 	kstat_named_t arcstat_sys_free;
+
+	/* ABD memory usage stats */
+	kstat_named_t arcstat_abd_data_size;
+	kstat_named_t arcstat_abd_hdr_size;
+
 	kstat_named_t arcstat_freeze_collisions;
 } arc_stats_t;
 
@@ -574,6 +579,8 @@ static arc_stats_t arc_stats = {
 	{ "arc_meta_min",		KSTAT_DATA_UINT64 },
 	{ "arc_need_free",		KSTAT_DATA_UINT64 },
 	{ "arc_sys_free",		KSTAT_DATA_UINT64 },
+	{ "abd_data_size",		KSTAT_DATA_UINT64 },
+	{ "abd_hdr_size",		KSTAT_DATA_UINT64 },
 	{ "freeze_collisions",		KSTAT_DATA_UINT64 }
 };
 
@@ -1767,12 +1774,18 @@ arc_space_consume(uint64_t space, arc_space_type_t type)
 	case ARC_SPACE_HDRS:
 		ARCSTAT_INCR(arcstat_hdr_size, space);
 		break;
+	case ARC_SPACE_ABD_DATA:
+		ARCSTAT_INCR(arcstat_abd_data_size, space);
+		break;
+	case ARC_SPACE_ABD_HDRS:
+		ARCSTAT_INCR(arcstat_abd_hdr_size, space);
+		break;
 	case ARC_SPACE_L2HDRS:
 		ARCSTAT_INCR(arcstat_l2_hdr_size, space);
 		break;
 	}
 
-	if (type != ARC_SPACE_DATA)
+	if (type != ARC_SPACE_DATA && type != ARC_SPACE_ABD_DATA)
 		ARCSTAT_INCR(arcstat_meta_used, space);
 
 	atomic_add_64(&arc_size, space);
@@ -1798,12 +1811,18 @@ arc_space_return(uint64_t space, arc_space_type_t type)
 	case ARC_SPACE_HDRS:
 		ARCSTAT_INCR(arcstat_hdr_size, -space);
 		break;
+	case ARC_SPACE_ABD_DATA:
+	 	ARCSTAT_INCR(arcstat_abd_data_size, -space);
+	 	break;
+	case ARC_SPACE_ABD_HDRS:
+		ARCSTAT_INCR(arcstat_abd_hdr_size, -space);
+		break;
 	case ARC_SPACE_L2HDRS:
 		ARCSTAT_INCR(arcstat_l2_hdr_size, -space);
 		break;
 	}
 
-	if (type != ARC_SPACE_DATA) {
+	if (type != ARC_SPACE_DATA && type != ARC_SPACE_ABD_DATA) {
 		ASSERT(arc_meta_used >= space);
 		if (arc_meta_max < arc_meta_used)
 			arc_meta_max = arc_meta_used;
