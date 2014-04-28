@@ -25,6 +25,7 @@
 
 #include <sys/abd.h>
 #include <sys/zio.h>
+#include <sys/arc.h>
 #ifdef _KERNEL
 #include <linux/kernel.h>
 #include <linux/sched.h>
@@ -1004,6 +1005,8 @@ static kmem_cache_t *abd_struct_cache = NULL;
  * It shares the underlying buffer with the original ABD.
  * Use abd_put to free. The original ABD(allocated from abd_alloc) must
  * not be freed before any of its derived ABD.
+ *
+ * ARC space is not tracked as this isn't an ARC allocation.
  */
 abd_t *
 abd_get_offset(abd_t *sabd, size_t off)
@@ -1165,6 +1168,8 @@ retry:
 		sg_set_page(sg, page, (i == n-1 ? last_size : PAGESIZE), 0);
 	}
 
+	arc_space_consume(n * PAGESIZE, ARC_SPACE_ABD_DATA);
+	arc_space_consume(sizeof(*abd), ARC_SPACE_ABD_HDRS);
 	return (abd);
 }
 
@@ -1195,6 +1200,7 @@ abd_alloc_linear(size_t size)
 
 	abd->abd_buf = zio_buf_alloc(size);
 
+	arc_space_consume(sizeof(*abd), ARC_SPACE_ABD_HDRS);
 	return (abd);
 }
 
@@ -1216,7 +1222,9 @@ abd_free_scatter(abd_t *abd, size_t size)
 	}
 
 	abd_sg_free_table(abd);
+	arc_space_return(abd->abd_nents * PAGESIZE, ARC_SPACE_ABD_DATA);
 	kmem_cache_free(abd_struct_cache, abd);
+	arc_space_return(sizeof(*abd), ARC_SPACE_ABD_HDRS);
 }
 
 static void
@@ -1225,6 +1233,7 @@ abd_free_linear(abd_t *abd, size_t size)
 	abd->abd_magic = 0;
 	zio_buf_free(abd->abd_buf, size);
 	kmem_cache_free(abd_struct_cache, abd);
+	arc_space_return(sizeof(*abd), ARC_SPACE_ABD_HDRS);
 }
 
 /*
