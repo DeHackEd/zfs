@@ -24,6 +24,7 @@
  */
 
 #include <sys/abd.h>
+#include <sys/arc.h>
 #ifdef _KERNEL
 #include <linux/kernel.h>
 #include <linux/sched.h>
@@ -819,9 +820,9 @@ abd_alloc(size_t size)
 	arc_buf_data_t *abd;
 	struct page *page;
 	int i, n = DIV_ROUND_UP(size, PAGE_SIZE);
-
-	abd = kmem_alloc(sizeof (arc_buf_data_t) +
-	    n * sizeof (struct scatterlist), KM_PUSHPAGE);
+	const int headersize = sizeof(arc_buf_data_t) + 
+	    n * sizeof(struct scatterlist);
+	abd = kmem_alloc(headersize, KM_PUSHPAGE);
 
 	ASSERT(abd);
 	ASSERT_ABD_LINEAR(abd);
@@ -842,7 +843,8 @@ retry:
 		}
 		sg_set_page(&abd->abd_sgl[i], page, PAGE_SIZE, 0);
 	}
-
+	arc_space_consume(headersize, ARC_SPACE_ABD_HDRS);
+	arc_space_consume(PAGE_SIZE * n, ARC_SPACE_ABD_DATA);
 	return (abd_t *)(((unsigned long)abd)|0x1);
 }
 
@@ -856,6 +858,8 @@ abd_free(abd_t *__abd, size_t size)
 	ASSERT(abd->abd_sgl == &abd->__abd_sgl[0]);
 	ASSERT(abd->abd_size == size);
 	n =  DIV_ROUND_UP(abd->abd_size, PAGE_SIZE);
+	const int headersize = sizeof(arc_buf_data_t) + 
+	    n * sizeof(struct scatterlist);
 
 	abd->abd_magic = 0;
 	for (i = 0; i < n; i++) {
@@ -863,6 +867,8 @@ abd_free(abd_t *__abd, size_t size)
 		if (page)
 			__free_page(page);
 	}
-	kmem_free(abd, sizeof (arc_buf_data_t) +
-	    n * sizeof (struct scatterlist));
+	kmem_free(abd, headersize);
+	arc_space_return(headersize, ARC_SPACE_ABD_HDRS);
+	arc_space_return(PAGE_SIZE * n, ARC_SPACE_ABD_DATA);
 }
+
