@@ -1038,7 +1038,7 @@ visit_indirect(spa_t *spa, const dnode_phys_t *dnp,
 		ASSERT(buf->b_data);
 
 		/* recursively visit blocks below this */
-		cbp = buf->b_data;
+		cbp = ABD_TO_BUF(buf->b_data);
 		for (i = 0; i < epb; i++, cbp++) {
 			zbookmark_t czb;
 
@@ -1210,7 +1210,7 @@ dump_bptree(objset_t *os, uint64_t obj, char *name)
 		return;
 
 	VERIFY3U(0, ==, dmu_bonus_hold(os, obj, FTAG, &db));
-	bt = db->db_data;
+	bt = ABD_TO_BUF(db->db_data);
 	zdb_nicenum(bt->bt_bytes, bytes);
 	(void) printf("\n    %s: %llu datasets, %s\n",
 	    name, (unsigned long long)(bt->bt_end - bt->bt_begin), bytes);
@@ -1655,7 +1655,7 @@ dump_object(objset_t *os, uint64_t object, int verbosity, int *print_header)
 		if (error)
 			fatal("dmu_bonus_hold(%llu) failed, errno %u",
 			    object, error);
-		bonus = db->db_data;
+		bonus = ABD_TO_BUF(db->db_data);
 		bsize = db->db_size;
 		dn = DB_DNODE((dmu_buf_impl_t *)db);
 	}
@@ -1877,7 +1877,7 @@ dump_config(spa_t *spa)
 	    spa->spa_config_object, FTAG, &db);
 
 	if (error == 0) {
-		nvsize = *(uint64_t *)db->db_data;
+		nvsize = *(uint64_t *)ABD_TO_BUF(db->db_data);
 		dmu_buf_rele(db, FTAG);
 
 		(void) printf("\nMOS Configuration:\n");
@@ -2154,7 +2154,7 @@ zdb_blkptr_done(zio_t *zio)
 	zdb_cb_t *zcb = zio->io_private;
 	zbookmark_t *zb = &zio->io_bookmark;
 
-	zio_data_buf_free(zio->io_data, zio->io_size);
+	zio_data_buf_free(ABD_TO_BUF(zio->io_data), zio->io_size);
 
 	mutex_enter(&spa->spa_scrub_lock);
 	spa->spa_scrub_inflight--;
@@ -2218,7 +2218,7 @@ zdb_blkptr_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		spa->spa_scrub_inflight++;
 		mutex_exit(&spa->spa_scrub_lock);
 
-		zio_nowait(zio_read(NULL, spa, bp, data, size,
+		zio_nowait(zio_read(NULL, spa, bp, BUF_TO_ABD(data), size,
 		    zdb_blkptr_done, zcb, ZIO_PRIORITY_ASYNC_READ, flags, zb));
 	}
 
@@ -3042,14 +3042,15 @@ zdb_read_block(char *thing, spa_t *spa)
 		/*
 		 * Treat this as a normal block read.
 		 */
-		zio_nowait(zio_read(zio, spa, bp, pbuf, psize, NULL, NULL,
-		    ZIO_PRIORITY_SYNC_READ,
+		zio_nowait(zio_read(zio, spa, bp, BUF_TO_ABD(pbuf), psize,
+		    NULL, NULL, ZIO_PRIORITY_SYNC_READ,
 		    ZIO_FLAG_CANFAIL | ZIO_FLAG_RAW, NULL));
 	} else {
 		/*
 		 * Treat this as a vdev child I/O.
 		 */
-		zio_nowait(zio_vdev_child_io(zio, bp, vd, offset, pbuf, psize,
+		zio_nowait(zio_vdev_child_io(zio, bp, vd, offset,
+		    BUF_TO_ABD(pbuf), psize,
 		    ZIO_TYPE_READ, ZIO_PRIORITY_SYNC_READ,
 		    ZIO_FLAG_DONT_CACHE | ZIO_FLAG_DONT_QUEUE |
 		    ZIO_FLAG_DONT_PROPAGATE | ZIO_FLAG_DONT_RETRY |
