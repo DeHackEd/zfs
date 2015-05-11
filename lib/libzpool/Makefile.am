@@ -19,6 +19,7 @@ USER_C = \
 	util.c
 
 KERNEL_C = \
+	abd.c \
 	zfs_comutil.c \
 	zfs_deleg.c \
 	zfs_fletcher.c \
