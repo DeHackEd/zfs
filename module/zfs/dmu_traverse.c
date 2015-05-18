@@ -334,16 +334,17 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL, &flags, zb);
 		if (err != 0)
 			goto post;
-		child_dnp = ABD_TO_BUF(buf->b_data);
 
 		for (i = 0; i < epb; i++) {
-			prefetch_dnode_metadata(td, &child_dnp[i],
+			child_dnp = abd_array(buf->b_data, i, dnode_phys_t);
+			prefetch_dnode_metadata(td, child_dnp,
 			    zb->zb_objset, zb->zb_blkid * epb + i);
 		}
 
 		/* recursively visitbp() blocks below this */
 		for (i = 0; i < epb; i++) {
-			err = traverse_dnode(td, &child_dnp[i],
+			child_dnp = abd_array(buf->b_data, i, dnode_phys_t);
+			err = traverse_dnode(td, child_dnp,
 			    zb->zb_objset, zb->zb_blkid * epb + i);
 			if (err != 0)
 				break;
